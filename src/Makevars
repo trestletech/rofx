@@ -1,0 +1,12 @@
+#SOURCES=$(wildcard *.cpp)
+
+#OBJECTS = rofx.so RcppExports.o $(SOURCES:.cpp=.o)
+CXX_STD = CXX11
+
+PKG_CPPFLAGS=-Ilibofx
+PKG_LIBS=-Llibofx -lofx
+
+all: $(SHLIB)
+
+#clean:
+#   @rm -f $(OBJECTS)
