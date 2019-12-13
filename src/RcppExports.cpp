@@ -6,18 +6,19 @@
 using namespace Rcpp;
 
 // ofx_info
-int ofx_info();
-RcppExport SEXP _rofx_ofx_info() {
+int ofx_info(SEXP path);
+RcppExport SEXP _rofx_ofx_info(SEXP pathSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    rcpp_result_gen = Rcpp::wrap(ofx_info());
+    Rcpp::traits::input_parameter< SEXP >::type path(pathSEXP);
+    rcpp_result_gen = Rcpp::wrap(ofx_info(path));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_rofx_ofx_info", (DL_FUNC) &_rofx_ofx_info, 0},
+    {"_rofx_ofx_info", (DL_FUNC) &_rofx_ofx_info, 1},
     {NULL, NULL, 0}
 };
 

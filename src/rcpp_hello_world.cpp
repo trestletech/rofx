@@ -41,9 +41,6 @@
 
 #include <errno.h>
 
-// #include <Rcpp.h>
-// using namespace Rcpp;
-
 using namespace std;
 
 int ofx_proc_security_cb(struct OfxSecurityData data, void * security_data)
@@ -434,8 +431,12 @@ int ofx_proc_status_cb(struct OfxStatusData data, void * status_data)
   return 0;
 }
 
+// Have to do this after all the other code or we get collisions on WARN variable
+// which manifest as a enum syntax parsing
+#include <Rcpp.h>
+
 // [[Rcpp::export]]
-int ofx_info()
+int ofx_info(SEXP path)
 {
   /*ofx_PARSER_msg = false;
   ofx_DEBUG_msg = false;
@@ -447,11 +448,9 @@ int ofx_info()
   
   //char **inputs ; /* unamed options */
   //unsigned inputs_num ; /* unamed options number */
-  const char* filename = "/Users/jeff/Downloads/test.ofx";
+  //const char* filename = "/Users/jeff/Downloads/test.ofx";
   
-  // https://stackoverflow.com/questions/8421250/convert-rcppcharactervector-to-stdstring
-  // SEXP path
-  //const char* filename = Rcpp::as<string>(path)
+  string filename = Rcpp::as<string>(path);
   
   ofx_set_statement_cb(libofx_context, ofx_proc_statement_cb, 0);
   ofx_set_account_cb(libofx_context, ofx_proc_account_cb, 0);
@@ -465,7 +464,7 @@ int ofx_info()
 
   cout << file_format << "\n";
   
-  libofx_proc_file(libofx_context, filename, file_format);
+  libofx_proc_file(libofx_context, filename.c_str(), file_format);
   
   return 0;
 }
