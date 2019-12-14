@@ -28,6 +28,14 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
+
+// Have to do this after all the other code or we get collisions on WARN variable
+// which manifest as a enum syntax parsing
+#include <Rcpp.h>
+// Disable WARN macro which collides with OfxStatusData
+#undef WARN
+#undef ERROR
+
 #include <iostream>
 #include <iomanip>
 #include <cstdlib>
@@ -338,57 +346,67 @@ int ofx_proc_statement_cb(struct OfxStatementData data, void * statement_data)
 
 int ofx_proc_account_cb(struct OfxAccountData data, void * account_data)
 {
-  cout << "ofx_proc_account():\n";
+  Rcpp::List* inf{static_cast<Rcpp::List*>(account_data)};
+  if (inf->containsElementNamed("account")){
+    // Already have an account
+    Rcpp::stop("Found multiple accounts in the OFX file; not currently supported");
+    return -1;
+  }
+  
+  Rcpp::List account = Rcpp::List::create();
+  
   if (data.account_id_valid == true)
   {
-    cout << "    Account ID: " << data.account_id << "\n";
-    cout << "    Account name: " << data.account_name << "\n";
+    account["id"] = data.account_id;
+    account["name"] = data.account_name;
   }
   if (data.account_type_valid == true)
   {
-    cout << "    Account type: ";
+    std::string typestr;
     switch (data.account_type)
     {
     case OfxAccountData::OFX_CHECKING :
-      cout << "CHECKING\n";
+      typestr = "checking";
       break;
     case OfxAccountData::OFX_SAVINGS :
-      cout << "SAVINGS\n";
+      typestr = "savings";
       break;
     case OfxAccountData::OFX_MONEYMRKT :
-      cout << "MONEYMRKT\n";
+      typestr = "moneymarket";
       break;
     case OfxAccountData::OFX_CREDITLINE :
-      cout << "CREDITLINE\n";
+      typestr = "creditline";
       break;
     case OfxAccountData::OFX_CMA :
-      cout << "CMA\n";
+      typestr = "cma";
       break;
     case OfxAccountData::OFX_CREDITCARD :
-      cout << "CREDITCARD\n";
+      typestr = "creditcard";
       break;
     case OfxAccountData::OFX_INVESTMENT :
-      cout << "INVESTMENT\n";
+      typestr = "investment";
       break;
     default:
-      cout << "ofx_proc_account() WRITEME: This is an unknown account type!";
+      typestr = "unknown";
     }
+    account["type"] = typestr;
   }
   if (data.currency_valid == true)
   {
-    cout << "    Currency: " << data.currency << "\n";
+    account["currency"] = data.currency;
   }
   
   if (data.bank_id_valid)
-    cout << "    Bank ID: " << data.bank_id << endl;;
+    account["bank_id"] = data.bank_id;
   
   if (data.branch_id_valid)
-    cout << "    Branch ID: " << data.branch_id << endl;
+    account["branch_id"] = data.branch_id;
   
   if (data.account_number_valid)
-    cout << "    Account #: " << data.account_number << endl;
+    account["number"] = data.account_number;
   
-  cout << "\n";
+  (*inf)["account"] = account;
+  
   return 0;
 }//end ofx_proc_account()
 
@@ -431,12 +449,8 @@ int ofx_proc_status_cb(struct OfxStatusData data, void * status_data)
   return 0;
 }
 
-// Have to do this after all the other code or we get collisions on WARN variable
-// which manifest as a enum syntax parsing
-#include <Rcpp.h>
-
 // [[Rcpp::export]]
-int ofx_info(SEXP path)
+SEXP ofx_info(SEXP path)
 {
   /*ofx_PARSER_msg = false;
   ofx_DEBUG_msg = false;
@@ -444,6 +458,7 @@ int ofx_info(SEXP path)
   ofx_ERROR_msg = false;
   ofx_INFO_msg = false;*/
   
+  Rcpp::List inf = Rcpp::List::create();
   LibofxContextPtr libofx_context = libofx_get_new_context();
   
   //char **inputs ; /* unamed options */
@@ -452,11 +467,11 @@ int ofx_info(SEXP path)
   
   string filename = Rcpp::as<string>(path);
   
-  ofx_set_statement_cb(libofx_context, ofx_proc_statement_cb, 0);
-  ofx_set_account_cb(libofx_context, ofx_proc_account_cb, 0);
-  ofx_set_transaction_cb(libofx_context, ofx_proc_transaction_cb, 0);
-  ofx_set_security_cb(libofx_context, ofx_proc_security_cb, 0);
-  ofx_set_status_cb(libofx_context, ofx_proc_status_cb, 0);
+  ofx_set_statement_cb(libofx_context, ofx_proc_statement_cb, &inf);
+  ofx_set_account_cb(libofx_context, ofx_proc_account_cb, &inf);
+  ofx_set_transaction_cb(libofx_context, ofx_proc_transaction_cb,&inf);
+  ofx_set_security_cb(libofx_context, ofx_proc_security_cb, &inf);
+  ofx_set_status_cb(libofx_context, ofx_proc_status_cb, &inf);
   
   cout << filename << "\n";
   
@@ -466,5 +481,5 @@ int ofx_info(SEXP path)
   
   libofx_proc_file(libofx_context, filename.c_str(), file_format);
   
-  return 0;
+  return inf;
 }

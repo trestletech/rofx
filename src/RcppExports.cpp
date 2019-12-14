@@ -6,7 +6,7 @@
 using namespace Rcpp;
 
 // ofx_info
-int ofx_info(SEXP path);
+SEXP ofx_info(SEXP path);
 RcppExport SEXP _rofx_ofx_info(SEXP pathSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
