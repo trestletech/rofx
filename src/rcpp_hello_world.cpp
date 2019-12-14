@@ -298,49 +298,59 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
 
 int ofx_proc_statement_cb(struct OfxStatementData data, void * statement_data)
 {
-  char dest_string[255];
-  cout << "ofx_proc_statement():\n";
+  Rcpp::List* inf{static_cast<Rcpp::List*>(statement_data)};
+  if (inf->containsElementNamed("statement")){
+    // Already have an statement
+    Rcpp::stop("Found multiple statement in the OFX file; not currently supported");
+    return -1;
+  }
+  
+  Rcpp::List stmt = Rcpp::List::create();
+  
   if (data.currency_valid == true)
   {
-    cout << "    Currency: " << data.currency << "\n";
+    stmt["currency"] = data.currency;
   }
   if (data.account_id_valid == true)
   {
-    cout << "    Account ID: " << data.account_id << "\n";
+    stmt["account_id"] = data.account_id;
   }
+  //char dest_string[255];
   if (data.date_start_valid == true)
   {
-    strftime(dest_string, sizeof(dest_string), "%c %Z", localtime(&(data.date_start)));
-    cout << "    Start date of this statement: " << dest_string << "\n";
+    stmt["date_start"] = Rcpp::Datetime(data.date_start);
   }
   if (data.date_end_valid == true)
   {
-    strftime(dest_string, sizeof(dest_string), "%c %Z", localtime(&(data.date_end)));
-    cout << "    End date of this statement: " << dest_string << "\n";
+    stmt["date_end"] = Rcpp::Datetime(data.date_end);
   }
   if (data.ledger_balance_valid == true)
   {
-    cout << "    Ledger balance: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.ledger_balance << "\n";
+    stmt["ledger_balance"] = data.ledger_balance;
   }
   if (data.ledger_balance_date_valid == true)
   {
-    strftime(dest_string, sizeof(dest_string), "%c %Z", localtime(&(data.ledger_balance_date)));
-    cout << "    Ledger balance date: " << dest_string << "\n";
+    stmt["ledger_balance_date"] = Rcpp::Datetime(data.ledger_balance_date);
   }
   if (data.available_balance_valid == true)
   {
-    cout << "    Available balance: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.available_balance << "\n";
+    stmt["available_balance"] = data.available_balance;
+    //cout << "    Available balance: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.available_balance << "\n";
   }
   if (data.available_balance_date_valid == true)
   {
-    strftime(dest_string, sizeof(dest_string), "%c %Z", localtime(&(data.available_balance_date)));
-    cout << "    Available balance date: " << dest_string << "\n";
+    // TODO: all times should be interpreted as UTC, currently parsed in localtime
+    stmt["available_balance_date"] = Rcpp::Datetime(data.available_balance_date);
+    /*Rcpp::Datetime dt = Rcpp::Datetime(data.available_balance_date);
+     dt.attr("tzone") = "UTC";
+     stmt["available_balance_date"] = dt;*/
   }
   if (data.marketing_info_valid == true)
   {
-    cout << "    Marketing information: " << data.marketing_info << "\n";
+    stmt["marketing_info"] = data.marketing_info;
   }
-  cout << "\n";
+  
+  (*inf)["statement"] = stmt;
   return 0;
 }//end ofx_proc_statement()
 
