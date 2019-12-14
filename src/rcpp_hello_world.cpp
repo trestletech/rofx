@@ -54,16 +54,38 @@ using namespace std;
 class TransactionList {
 public:
   Rcpp::StringVector accountId;
+  Rcpp::StringVector transactionType;
+  Rcpp::DatetimeVector initiated;
+  Rcpp::DatetimeVector posted;
+  Rcpp::DatetimeVector fundsAvailable;
+  Rcpp::NumericVector amount;
+  Rcpp::NumericVector units;
+  Rcpp::NumericVector oldUnits;
+  Rcpp::NumericVector newUnits;
+  
   Rcpp::DataFrame toDataFrame();
   TransactionList(); // constructor
 };
 
-TransactionList::TransactionList(void){
-  accountId = Rcpp::StringVector::create();
+TransactionList::TransactionList(void) : accountId(0), transactionType(0), 
+  initiated(0), posted(0), fundsAvailable(0), amount(0), units(0), oldUnits(0),
+  newUnits(0) {
 }
 
 Rcpp::DataFrame TransactionList::toDataFrame(){
-  return Rcpp::DataFrame::create(Rcpp::_["account_id"] = accountId);
+  // TODO: the datetimes are losing their attributes when getting cast to dataframe.
+  return Rcpp::DataFrame::create(
+    Rcpp::_["account_id"] = accountId,
+    Rcpp::_["transaction_type"] = transactionType,
+    Rcpp::_["initiated"] = initiated,
+    Rcpp::_["posted"] = posted,
+    Rcpp::_["funds_available"] = fundsAvailable,
+    Rcpp::_["amount"] = amount,
+    Rcpp::_["units"] = units,
+    Rcpp::_["old_units"] = oldUnits,
+    Rcpp::_["new_units"] = newUnits
+  
+  );
 }
 
 int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_data)
@@ -78,84 +100,104 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
     tl->accountId.push_back(NA_STRING);
   }
   
+  // TODO: move to a new function
+  Rcpp::String type = NA_STRING;
+  if (data.transactiontype_valid == true)
+  {
+    if (data.transactiontype == OFX_CREDIT)
+      type = "CREDIT: Generic credit";
+    else if (data.transactiontype == OFX_DEBIT)
+      type = "DEBIT: Generic debit";
+    else if (data.transactiontype == OFX_INT)
+      type = "INT: Interest earned or paid (Note: Depends on signage of amount)";
+    else if (data.transactiontype == OFX_DIV)
+      type = "DIV: Dividend";
+    else if (data.transactiontype == OFX_FEE)
+      type = "FEE: FI fee";
+    else if (data.transactiontype == OFX_SRVCHG)
+      type = "SRVCHG: Service charge";
+    else if (data.transactiontype == OFX_DEP)
+      type = "DEP: Deposit";
+    else if (data.transactiontype == OFX_ATM)
+      type = "ATM: ATM debit or credit (Note: Depends on signage of amount)";
+    else if (data.transactiontype == OFX_POS)
+      type = "POS: Point of sale debit or credit (Note: Depends on signage of amount)";
+    else if (data.transactiontype == OFX_XFER)
+      type = "XFER: Transfer";
+    else if (data.transactiontype == OFX_CHECK)
+      type = "CHECK: Check";
+    else if (data.transactiontype == OFX_PAYMENT)
+      type = "PAYMENT: Electronic payment";
+    else if (data.transactiontype == OFX_CASH)
+      type = "CASH: Cash withdrawal";
+    else if (data.transactiontype == OFX_DIRECTDEP)
+      type = "DIRECTDEP: Direct deposit";
+    else if (data.transactiontype == OFX_DIRECTDEBIT)
+      type = "DIRECTDEBIT: Merchant initiated debit";
+    else if (data.transactiontype == OFX_REPEATPMT)
+      type = "REPEATPMT: Repeating payment/standing order";
+    else if (data.transactiontype == OFX_OTHER)
+      type = "OTHER: Other";
+    else
+      type = "Unknown transaction type";
+  }
+  tl->transactionType.push_back(type);
+  
+  if (data.date_initiated_valid == true)
+  {
+    tl->initiated.push_back(Rcpp::Datetime(data.date_initiated));
+  } else {
+    tl->initiated.push_back(NA_REAL);
+  }
+  
+  if (data.date_posted_valid == true)
+  {
+    cout << data.date_posted << "\n";
+    tl->posted.push_back(Rcpp::Datetime(data.date_posted));
+  } else {
+    tl->posted.push_back(NA_REAL);
+  }
+  
+  if (data.date_funds_available_valid == true)
+  {
+    tl->fundsAvailable.push_back(Rcpp::Datetime(data.date_funds_available));
+  } else {
+    tl->fundsAvailable.push_back(NA_REAL);
+  }
+  
+  if (data.amount_valid == true)
+  {
+    tl->amount.push_back(data.amount);
+  } else {
+    tl->amount.push_back(NA_REAL);
+  }
+  
+  if (data.units_valid == true)
+  {
+    tl->units.push_back(data.units);
+  } else {
+    tl->units.push_back(NA_REAL);
+  }
+  
+  if (data.oldunits_valid == true)
+  {
+    tl->oldUnits.push_back(data.oldunits);
+  } else {
+    tl->oldUnits.push_back(NA_REAL);
+  }
+  
+  if (data.newunits_valid == true)
+  {
+    tl->newUnits.push_back(data.newunits);
+  } else {
+    tl->newUnits.push_back(NA_REAL);
+  }
   
   
   return 0;
   /*
+
   
-  if (data.transactiontype_valid == true)
-  {
-    if (data.transactiontype == OFX_CREDIT)
-      strncpy(dest_string, "CREDIT: Generic credit", sizeof(dest_string));
-    else if (data.transactiontype == OFX_DEBIT)
-      strncpy(dest_string, "DEBIT: Generic debit", sizeof(dest_string));
-    else if (data.transactiontype == OFX_INT)
-      strncpy(dest_string, "INT: Interest earned or paid (Note: Depends on signage of amount)", sizeof(dest_string));
-    else if (data.transactiontype == OFX_DIV)
-      strncpy(dest_string, "DIV: Dividend", sizeof(dest_string));
-    else if (data.transactiontype == OFX_FEE)
-      strncpy(dest_string, "FEE: FI fee", sizeof(dest_string));
-    else if (data.transactiontype == OFX_SRVCHG)
-      strncpy(dest_string, "SRVCHG: Service charge", sizeof(dest_string));
-    else if (data.transactiontype == OFX_DEP)
-      strncpy(dest_string, "DEP: Deposit", sizeof(dest_string));
-    else if (data.transactiontype == OFX_ATM)
-      strncpy(dest_string, "ATM: ATM debit or credit (Note: Depends on signage of amount)", sizeof(dest_string));
-    else if (data.transactiontype == OFX_POS)
-      strncpy(dest_string, "POS: Point of sale debit or credit (Note: Depends on signage of amount)", sizeof(dest_string));
-    else if (data.transactiontype == OFX_XFER)
-      strncpy(dest_string, "XFER: Transfer", sizeof(dest_string));
-    else if (data.transactiontype == OFX_CHECK)
-      strncpy(dest_string, "CHECK: Check", sizeof(dest_string));
-    else if (data.transactiontype == OFX_PAYMENT)
-      strncpy(dest_string, "PAYMENT: Electronic payment", sizeof(dest_string));
-    else if (data.transactiontype == OFX_CASH)
-      strncpy(dest_string, "CASH: Cash withdrawal", sizeof(dest_string));
-    else if (data.transactiontype == OFX_DIRECTDEP)
-      strncpy(dest_string, "DIRECTDEP: Direct deposit", sizeof(dest_string));
-    else if (data.transactiontype == OFX_DIRECTDEBIT)
-      strncpy(dest_string, "DIRECTDEBIT: Merchant initiated debit", sizeof(dest_string));
-    else if (data.transactiontype == OFX_REPEATPMT)
-      strncpy(dest_string, "REPEATPMT: Repeating payment/standing order", sizeof(dest_string));
-    else if (data.transactiontype == OFX_OTHER)
-      strncpy(dest_string, "OTHER: Other", sizeof(dest_string));
-    else
-      strncpy(dest_string, "Unknown transaction type", sizeof(dest_string));
-    cout << "    Transaction type: " << dest_string << "\n";
-  }
-  
-  
-  if (data.date_initiated_valid == true)
-  {
-    strftime(dest_string, sizeof(dest_string), "%c %Z", localtime(&(data.date_initiated)));
-    cout << "    Date initiated: " << dest_string << "\n";
-  }
-  if (data.date_posted_valid == true)
-  {
-    strftime(dest_string, sizeof(dest_string), "%c %Z", localtime(&(data.date_posted)));
-    cout << "    Date posted: " << dest_string << "\n";
-  }
-  if (data.date_funds_available_valid == true)
-  {
-    strftime(dest_string, sizeof(dest_string), "%c %Z", localtime(&(data.date_funds_available)));
-    cout << "    Date funds are available: " << dest_string << "\n";
-  }
-  if (data.amount_valid == true)
-  {
-    cout << "    Total money amount: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.amount << "\n";
-  }
-  if (data.units_valid == true)
-  {
-    cout << "    # of units: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.units << "\n";
-  }
-  if (data.oldunits_valid == true)
-  {
-    cout << "    # of units before split: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.oldunits << "\n";
-  }
-  if (data.newunits_valid == true)
-  {
-    cout << "    # of units after split: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.newunits << "\n";
-  }
   if (data.unitprice_valid == true)
   {
     cout << "    Unit price: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.unitprice << "\n";
@@ -190,45 +232,45 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
   {
     cout << "    Investment transaction type: ";
     if (data.invtransactiontype == OFX_BUYDEBT)
-      strncpy(dest_string, "BUYDEBT (Buy debt security)", sizeof(dest_string));
+      type = "BUYDEBT (Buy debt security)";
     else if (data.invtransactiontype == OFX_BUYMF)
-      strncpy(dest_string, "BUYMF (Buy mutual fund)", sizeof(dest_string));
+      type = "BUYMF (Buy mutual fund)";
     else if (data.invtransactiontype == OFX_BUYOPT)
-      strncpy(dest_string, "BUYOPT (Buy option)", sizeof(dest_string));
+      type = "BUYOPT (Buy option)";
     else if (data.invtransactiontype == OFX_BUYOTHER)
-      strncpy(dest_string, "BUYOTHER (Buy other security type)", sizeof(dest_string));
+      type = "BUYOTHER (Buy other security type)";
     else if (data.invtransactiontype == OFX_BUYSTOCK)
-      strncpy(dest_string, "BUYSTOCK (Buy stock))", sizeof(dest_string));
+      type = "BUYSTOCK (Buy stock))";
     else if (data.invtransactiontype == OFX_CLOSUREOPT)
-      strncpy(dest_string, "CLOSUREOPT (Close a position for an option)", sizeof(dest_string));
+      type = "CLOSUREOPT (Close a position for an option)";
     else if (data.invtransactiontype == OFX_INCOME)
-      strncpy(dest_string, "INCOME (Investment income is realized as cash into the investment account)", sizeof(dest_string));
+      type = "INCOME (Investment income is realized as cash into the investment account)";
     else if (data.invtransactiontype == OFX_INVEXPENSE)
-      strncpy(dest_string, "INVEXPENSE (Misc investment expense that is associated with a specific security)", sizeof(dest_string));
+      type = "INVEXPENSE (Misc investment expense that is associated with a specific security)";
     else if (data.invtransactiontype == OFX_JRNLFUND)
-      strncpy(dest_string, "JRNLFUND (Journaling cash holdings between subaccounts within the same investment account)", sizeof(dest_string));
+      type = "JRNLFUND (Journaling cash holdings between subaccounts within the same investment account)";
     else if (data.invtransactiontype == OFX_MARGININTEREST)
-      strncpy(dest_string, "MARGININTEREST (Margin interest expense)", sizeof(dest_string));
+      type = "MARGININTEREST (Margin interest expense)";
     else if (data.invtransactiontype == OFX_REINVEST)
-      strncpy(dest_string, "REINVEST (Reinvestment of income)", sizeof(dest_string));
+      type = "REINVEST (Reinvestment of income)";
     else if (data.invtransactiontype == OFX_RETOFCAP)
-      strncpy(dest_string, "RETOFCAP (Return of capital)", sizeof(dest_string));
+      type = "RETOFCAP (Return of capital)";
     else if (data.invtransactiontype == OFX_SELLDEBT)
-      strncpy(dest_string, "SELLDEBT (Sell debt security.  Used when debt is sold, called, or reached maturity)", sizeof(dest_string));
+      type = "SELLDEBT (Sell debt security.  Used when debt is sold, called, or reached maturity)";
     else if (data.invtransactiontype == OFX_SELLMF)
-      strncpy(dest_string, "SELLMF (Sell mutual fund)", sizeof(dest_string));
+      type = "SELLMF (Sell mutual fund)";
     else if (data.invtransactiontype == OFX_SELLOPT)
-      strncpy(dest_string, "SELLOPT (Sell option)", sizeof(dest_string));
+      type = "SELLOPT (Sell option)";
     else if (data.invtransactiontype == OFX_SELLOTHER)
-      strncpy(dest_string, "SELLOTHER (Sell other type of security)", sizeof(dest_string));
+      type = "SELLOTHER (Sell other type of security)";
     else if (data.invtransactiontype == OFX_SELLSTOCK)
-      strncpy(dest_string, "SELLSTOCK (Sell stock)", sizeof(dest_string));
+      type = "SELLSTOCK (Sell stock)";
     else if (data.invtransactiontype == OFX_SPLIT)
-      strncpy(dest_string, "SPLIT (Stock or mutial fund split)", sizeof(dest_string));
+      type = "SPLIT (Stock or mutial fund split)";
     else if (data.invtransactiontype == OFX_TRANSFER)
-      strncpy(dest_string, "TRANSFER (Transfer holdings in and out of the investment account)", sizeof(dest_string));
+      type = "TRANSFER (Transfer holdings in and out of the investment account)";
     else
-      strncpy(dest_string, "ERROR, this investment transaction type is unknown.  This is a bug in ofxdump", sizeof(dest_string));
+      type = "ERROR, this investment transaction type is unknown.  This is a bug in ofxdump";
     
     cout << dest_string << "\n";
   }
