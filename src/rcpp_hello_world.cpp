@@ -51,56 +51,37 @@
 
 using namespace std;
 
-int ofx_proc_security_cb(struct OfxSecurityData data, void * security_data)
-{
-  char dest_string[255];
-  cout << "ofx_proc_security():\n";
-  if (data.unique_id_valid == true)
-  {
-    cout << "    Unique ID of the security being traded: " << data.unique_id << "\n";
-  }
-  if (data.unique_id_type_valid == true)
-  {
-    cout << "    Format of the Unique ID: " << data.unique_id_type << "\n";
-  }
-  if (data.secname_valid == true)
-  {
-    cout << "    Name of the security: " << data.secname << "\n";
-  }
-  if (data.ticker_valid == true)
-  {
-    cout << "    Ticker symbol: " << data.ticker << "\n";
-  }
-  if (data.unitprice_valid == true)
-  {
-    cout << "    Price of each unit of the security: " << data.unitprice << "\n";
-  }
-  if (data.date_unitprice_valid == true)
-  {
-    strftime(dest_string, sizeof(dest_string), "%c %Z", localtime(&(data.date_unitprice)));
-    cout << "    Date as of which the unitprice is valid: " << dest_string << "\n";
-  }
-  if (data.currency_valid == true)
-  {
-    cout << "    Currency of the unitprice: " << data.currency << "\n";
-  }
-  if (data.memo_valid == true)
-  {
-    cout << "    Extra transaction information (memo): " << data.memo << "\n";
-  }
-  cout << "\n";
-  return 0;
+class TransactionList {
+public:
+  Rcpp::StringVector accountId;
+  Rcpp::DataFrame toDataFrame();
+  TransactionList(); // constructor
+};
+
+TransactionList::TransactionList(void){
+  accountId = Rcpp::StringVector::create();
+}
+
+Rcpp::DataFrame TransactionList::toDataFrame(){
+  return Rcpp::DataFrame::create(Rcpp::_["account_id"] = accountId);
 }
 
 int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_data)
 {
-  char dest_string[255];
-  cout << "ofx_proc_transaction():\n";
+  
+  TransactionList* tl{static_cast<TransactionList*>(transaction_data)};
   
   if (data.account_id_valid == true)
   {
-    cout << "    Account ID : " << data.account_id << "\n";
+    tl->accountId.push_back(data.account_id);
+  } else {
+    tl->accountId.push_back(NA_STRING);
   }
+  
+  
+  
+  return 0;
+  /*
   
   if (data.transactiontype_valid == true)
   {
@@ -294,7 +275,51 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
   }
   cout << "\n";
   return 0;
+   */
 }//end ofx_proc_transaction()
+
+
+int ofx_proc_security_cb(struct OfxSecurityData data, void * security_data)
+{
+  char dest_string[255];
+  cout << "ofx_proc_security():\n";
+  if (data.unique_id_valid == true)
+  {
+    cout << "    Unique ID of the security being traded: " << data.unique_id << "\n";
+  }
+  if (data.unique_id_type_valid == true)
+  {
+    cout << "    Format of the Unique ID: " << data.unique_id_type << "\n";
+  }
+  if (data.secname_valid == true)
+  {
+    cout << "    Name of the security: " << data.secname << "\n";
+  }
+  if (data.ticker_valid == true)
+  {
+    cout << "    Ticker symbol: " << data.ticker << "\n";
+  }
+  if (data.unitprice_valid == true)
+  {
+    cout << "    Price of each unit of the security: " << data.unitprice << "\n";
+  }
+  if (data.date_unitprice_valid == true)
+  {
+    strftime(dest_string, sizeof(dest_string), "%c %Z", localtime(&(data.date_unitprice)));
+    cout << "    Date as of which the unitprice is valid: " << dest_string << "\n";
+  }
+  if (data.currency_valid == true)
+  {
+    cout << "    Currency of the unitprice: " << data.currency << "\n";
+  }
+  if (data.memo_valid == true)
+  {
+    cout << "    Extra transaction information (memo): " << data.memo << "\n";
+  }
+  cout << "\n";
+  return 0;
+}
+
 
 int ofx_proc_statement_cb(struct OfxStatementData data, void * statement_data)
 {
@@ -339,11 +364,7 @@ int ofx_proc_statement_cb(struct OfxStatementData data, void * statement_data)
   }
   if (data.available_balance_date_valid == true)
   {
-    // TODO: all times should be interpreted as UTC, currently parsed in localtime
     stmt["available_balance_date"] = Rcpp::Datetime(data.available_balance_date);
-    /*Rcpp::Datetime dt = Rcpp::Datetime(data.available_balance_date);
-     dt.attr("tzone") = "UTC";
-     stmt["available_balance_date"] = dt;*/
   }
   if (data.marketing_info_valid == true)
   {
@@ -477,9 +498,11 @@ SEXP ofx_info(SEXP path)
   
   string filename = Rcpp::as<string>(path);
   
+  TransactionList tl = TransactionList();
+  
   ofx_set_statement_cb(libofx_context, ofx_proc_statement_cb, &inf);
   ofx_set_account_cb(libofx_context, ofx_proc_account_cb, &inf);
-  ofx_set_transaction_cb(libofx_context, ofx_proc_transaction_cb,&inf);
+  ofx_set_transaction_cb(libofx_context, ofx_proc_transaction_cb,&tl);
   ofx_set_security_cb(libofx_context, ofx_proc_security_cb, &inf);
   ofx_set_status_cb(libofx_context, ofx_proc_status_cb, &inf);
   
@@ -490,6 +513,9 @@ SEXP ofx_info(SEXP path)
   cout << file_format << "\n";
   
   libofx_proc_file(libofx_context, filename.c_str(), file_format);
+  
+  // Bring the accumulated transactions onto the list
+  inf["transactions"] = tl.toDataFrame();
   
   return inf;
 }
