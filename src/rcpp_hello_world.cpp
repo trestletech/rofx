@@ -62,6 +62,21 @@ public:
   Rcpp::NumericVector units;
   Rcpp::NumericVector oldUnits;
   Rcpp::NumericVector newUnits;
+  Rcpp::NumericVector unitprice;
+  Rcpp::NumericVector fees;
+  Rcpp::NumericVector commission;
+  Rcpp::StringVector fi_id;
+  Rcpp::StringVector fi_id_corrected;
+  Rcpp::StringVector invTransactionType;
+  Rcpp::StringVector unique_id;
+  Rcpp::StringVector unique_id_type;
+  Rcpp::StringVector server_transaction_id;
+  Rcpp::StringVector check_number;
+  Rcpp::StringVector reference_number;
+  Rcpp::NumericVector standard_industrial_code;
+  Rcpp::StringVector payee_id;
+  Rcpp::StringVector name;
+  Rcpp::StringVector memo;
   
   Rcpp::DataFrame toDataFrame();
   TransactionList(); // constructor
@@ -69,12 +84,15 @@ public:
 
 TransactionList::TransactionList(void) : accountId(0), transactionType(0), 
   initiated(0), posted(0), fundsAvailable(0), amount(0), units(0), oldUnits(0),
-  newUnits(0) {
+  newUnits(0), unitprice(0), fees(0), commission(0), fi_id(0), 
+  fi_id_corrected(0), invTransactionType(0), unique_id(0), unique_id_type(0),
+  server_transaction_id(0), check_number(0), reference_number(0),
+  standard_industrial_code(0), payee_id(0), name(0), memo(0) {
 }
 
 Rcpp::DataFrame TransactionList::toDataFrame(){
   // TODO: the datetimes are losing their attributes when getting cast to dataframe.
-  return Rcpp::DataFrame::create(
+  Rcpp::DataFrame df = Rcpp::DataFrame::create(
     Rcpp::_["account_id"] = accountId,
     Rcpp::_["transaction_type"] = transactionType,
     Rcpp::_["initiated"] = initiated,
@@ -82,10 +100,30 @@ Rcpp::DataFrame TransactionList::toDataFrame(){
     Rcpp::_["funds_available"] = fundsAvailable,
     Rcpp::_["amount"] = amount,
     Rcpp::_["units"] = units,
-    Rcpp::_["old_units"] = oldUnits,
-    Rcpp::_["new_units"] = newUnits
-  
+    //Rcpp::_["old_units"] = oldUnits,
+    //Rcpp::_["new_units"] = newUnits,
+    //Rcpp::_["unitprice"] = unitprice,
+    Rcpp::_["fees"] = fees,
+    //Rcpp::_["commission"] = commission,
+    Rcpp::_["fi_id"] = fi_id,
+    //Rcpp::_["fi_id_corrected"] = fi_id_corrected,
+    //Rcpp::_["inv_transaction_type"] = invTransactionType,
+    Rcpp::_["unique_id"] = unique_id,
+    Rcpp::_["unique_id_type"] = unique_id_type,
+    Rcpp::_["server_transaction_id"] = server_transaction_id,
+    Rcpp::_["check_number"] = check_number,
+    Rcpp::_["reference_number"] = reference_number,
+    Rcpp::_["standard_industrial_code"] = standard_industrial_code,
+    Rcpp::_["payee_id"] = payee_id,
+    Rcpp::_["name"] = name,
+    Rcpp::_["memo"] = memo
   );
+  
+  // create() can only handle so many columns, and pushBack converts it to a list 
+  // instead of a DF for some reason. So we're just commenting out some columns that 
+  // aren't important to me at the moment.
+  
+  return df;
 }
 
 int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_data)
@@ -152,7 +190,6 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
   
   if (data.date_posted_valid == true)
   {
-    cout << data.date_posted << "\n";
     tl->posted.push_back(Rcpp::Datetime(data.date_posted));
   } else {
     tl->posted.push_back(NA_REAL);
@@ -193,44 +230,45 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
     tl->newUnits.push_back(NA_REAL);
   }
   
-  
-  return 0;
-  /*
-
-  
   if (data.unitprice_valid == true)
   {
-    cout << "    Unit price: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.unitprice << "\n";
+    tl->unitprice.push_back(data.unitprice);
+  } else {
+    tl->unitprice.push_back(NA_REAL);
   }
+  
   if (data.fees_valid == true)
   {
-    cout << "    Fees: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.fees << "\n";
+    tl->fees.push_back(data.fees);
+  } else {
+    tl->fees.push_back(NA_REAL);
   }
+  
   if (data.commission_valid == true)
   {
-    cout << "    Commission: " << setiosflags(ios::fixed) << setiosflags(ios::showpoint) << setprecision(2) << data.commission << "\n";
+    tl->commission.push_back(data.commission);
+  } else {
+    tl->commission.push_back(NA_REAL);
   }
+  
   if (data.fi_id_valid == true)
   {
-    cout << "    Financial institution's ID for this transaction: " << data.fi_id << "\n";
+    tl->fi_id.push_back(data.fi_id);
+  } else {
+    tl->fi_id.push_back(NA_STRING);
   }
+  
   if (data.fi_id_corrected_valid == true)
   {
-    cout << "    Financial institution ID replaced or corrected by this transaction: " << data.fi_id_corrected << "\n";
+    tl->fi_id_corrected.push_back(data.fi_id_corrected);
+  } else {
+    tl->fi_id_corrected.push_back(NA_STRING);
   }
-  if (data.fi_id_correction_action_valid == true)
-  {
-    cout << "    Action to take on the corrected transaction: ";
-    if (data.fi_id_correction_action == DELETE)
-      cout << "DELETE\n";
-    else if (data.fi_id_correction_action == REPLACE)
-      cout << "REPLACE\n";
-    else
-      cout << "ofx_proc_transaction(): This should not happen!\n";
-  }
+  
+  // TODO: move to a function
+  type = NA_STRING;
   if (data.invtransactiontype_valid == true)
   {
-    cout << "    Investment transaction type: ";
     if (data.invtransactiontype == OFX_BUYDEBT)
       type = "BUYDEBT (Buy debt security)";
     else if (data.invtransactiontype == OFX_BUYMF)
@@ -271,52 +309,96 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
       type = "TRANSFER (Transfer holdings in and out of the investment account)";
     else
       type = "ERROR, this investment transaction type is unknown.  This is a bug in ofxdump";
-    
-    cout << dest_string << "\n";
   }
+  tl->invTransactionType.push_back(type);
+  
   if (data.unique_id_valid == true)
   {
-    cout << "    Unique ID of the security being traded: " << data.unique_id << "\n";
+    tl->unique_id.push_back(data.unique_id);
+  } else {
+    tl->unique_id.push_back(NA_STRING);
   }
+  
   if (data.unique_id_type_valid == true)
   {
-    cout << "    Format of the Unique ID: " << data.unique_id_type << "\n";
+    tl->unique_id_type.push_back(data.unique_id_type);
+  } else {
+    tl->unique_id_type.push_back(NA_STRING);
   }
+  /* 
+   * ofx_proc_security_cb(*(data.security_data_ptr), NULL );
+  
   if (data.security_data_valid == true)
   {
-    ofx_proc_security_cb(*(data.security_data_ptr), NULL );
-  }
+    tl->security_data.push_back(data.security_data);
+  } else {
+    tl->security_data.push_back(NA_STRING);
+  }*/
   
   if (data.server_transaction_id_valid == true)
   {
-    cout << "    Server's transaction ID (confirmation number): " << data.server_transaction_id << "\n";
+    tl->server_transaction_id.push_back(data.server_transaction_id);
+  } else {
+    tl->server_transaction_id.push_back(NA_STRING);
   }
+  
   if (data.check_number_valid == true)
   {
-    cout << "    Check number: " << data.check_number << "\n";
+    tl->check_number.push_back(data.check_number);
+  } else {
+    tl->check_number.push_back(NA_STRING);
   }
+  
   if (data.reference_number_valid == true)
   {
-    cout << "    Reference number: " << data.reference_number << "\n";
+    tl->reference_number.push_back(data.reference_number);
+  } else {
+    tl->reference_number.push_back(NA_STRING);
   }
+  
   if (data.standard_industrial_code_valid == true)
   {
-    cout << "    Standard Industrial Code: " << data.standard_industrial_code << "\n";
+    tl->standard_industrial_code.push_back(data.standard_industrial_code);
+  } else {
+    tl->standard_industrial_code.push_back(NA_REAL);
   }
+  
   if (data.payee_id_valid == true)
   {
-    cout << "    Payee_id: " << data.payee_id << "\n";
+    tl->payee_id.push_back(data.payee_id);
+  } else {
+    tl->payee_id.push_back(NA_STRING);
   }
+  
   if (data.name_valid == true)
   {
-    cout << "    Name of payee or transaction description: " << data.name << "\n";
+    tl->name.push_back(data.name);
+  } else {
+    tl->name.push_back(NA_STRING);
   }
+  
   if (data.memo_valid == true)
   {
-    cout << "    Extra transaction information (memo): " << data.memo << "\n";
+    tl->memo.push_back(data.memo);
+  } else {
+    tl->memo.push_back(NA_STRING);
   }
-  cout << "\n";
+  
+  
   return 0;
+  /*
+  TODO
+  if (data.fi_id_correction_action_valid == true)
+  {
+    cout << "    Action to take on the corrected transaction: ";
+    if (data.fi_id_correction_action == DELETE)
+      cout << "DELETE\n";
+    else if (data.fi_id_correction_action == REPLACE)
+      cout << "REPLACE\n";
+    else
+      cout << "ofx_proc_transaction(): This should not happen!\n";
+  }
+  
    */
 }//end ofx_proc_transaction()
 
