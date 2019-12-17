@@ -1,3 +1,4 @@
+// Taken from the "ofxdump" utility in libofx.
 
 /***************************************************************************
  ofxdump.cpp
@@ -625,18 +626,8 @@ int ofx_proc_status_cb(struct OfxStatusData data, void * status_data)
 // [[Rcpp::export]]
 SEXP ofx_info(SEXP path)
 {
-  /*ofx_PARSER_msg = false;
-  ofx_DEBUG_msg = false;
-  ofx_WARNING_msg = false;
-  ofx_ERROR_msg = false;
-  ofx_INFO_msg = false;*/
-  
   Rcpp::List inf = Rcpp::List::create();
   LibofxContextPtr libofx_context = libofx_get_new_context();
-  
-  //char **inputs ; /* unamed options */
-  //unsigned inputs_num ; /* unamed options number */
-  //const char* filename = "/Users/jeff/Downloads/test.ofx";
   
   string filename = Rcpp::as<string>(path);
   
@@ -648,12 +639,8 @@ SEXP ofx_info(SEXP path)
   ofx_set_security_cb(libofx_context, ofx_proc_security_cb, &inf);
   ofx_set_status_cb(libofx_context, ofx_proc_status_cb, &inf);
   
-  cout << filename << "\n";
-  
   enum LibofxFileFormat file_format = libofx_get_file_format_from_str(LibofxImportFormatList, "AUTODETECT");
 
-  cout << file_format << "\n";
-  
   libofx_proc_file(libofx_context, filename.c_str(), file_format);
   
   // Bring the accumulated transactions onto the list
