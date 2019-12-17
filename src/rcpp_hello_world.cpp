@@ -78,7 +78,7 @@ public:
   Rcpp::StringVector name;
   Rcpp::StringVector memo;
   
-  Rcpp::DataFrame toDataFrame();
+  Rcpp::DataFrame toList();
   TransactionList(); // constructor
 };
 
@@ -90,40 +90,40 @@ TransactionList::TransactionList(void) : accountId(0), transactionType(0),
   standard_industrial_code(0), payee_id(0), name(0), memo(0) {
 }
 
-Rcpp::DataFrame TransactionList::toDataFrame(){
+Rcpp::DataFrame TransactionList::toList(){
   // TODO: the datetimes are losing their attributes when getting cast to dataframe.
-  Rcpp::DataFrame df = Rcpp::DataFrame::create(
-    Rcpp::_["account_id"] = accountId,
-    Rcpp::_["transaction_type"] = transactionType,
-    Rcpp::_["initiated"] = initiated,
-    Rcpp::_["posted"] = posted,
-    Rcpp::_["funds_available"] = fundsAvailable,
-    Rcpp::_["amount"] = amount,
-    Rcpp::_["units"] = units,
-    //Rcpp::_["old_units"] = oldUnits,
-    //Rcpp::_["new_units"] = newUnits,
-    //Rcpp::_["unitprice"] = unitprice,
-    Rcpp::_["fees"] = fees,
-    //Rcpp::_["commission"] = commission,
-    Rcpp::_["fi_id"] = fi_id,
-    //Rcpp::_["fi_id_corrected"] = fi_id_corrected,
-    //Rcpp::_["inv_transaction_type"] = invTransactionType,
-    Rcpp::_["unique_id"] = unique_id,
-    Rcpp::_["unique_id_type"] = unique_id_type,
-    Rcpp::_["server_transaction_id"] = server_transaction_id,
-    Rcpp::_["check_number"] = check_number,
-    Rcpp::_["reference_number"] = reference_number,
-    Rcpp::_["standard_industrial_code"] = standard_industrial_code,
-    Rcpp::_["payee_id"] = payee_id,
-    Rcpp::_["name"] = name,
-    Rcpp::_["memo"] = memo
-  );
+  Rcpp::List r = Rcpp::List::create();
+  r.push_back(accountId, "account_id");
+  r.push_back(initiated, "initiated");
+  r.push_back(posted, "posted");
+  r.push_back(fundsAvailable, "funds_available");
+  r.push_back(amount, "amount");
+  r.push_back(units, "units");
+  r.push_back(oldUnits, "old_units");
+  r.push_back(newUnits, "new_units");
+  r.push_back(unitprice, "unitprice");
+  r.push_back(fees, "fees");
+  r.push_back(commission, "commission");
+  r.push_back(fi_id, "fi_id");
+  r.push_back(fi_id_corrected, "fi_id_corrected");
+  r.push_back(invTransactionType, "inv_transaction_type");
+  r.push_back(unique_id, "unique_id");
+  r.push_back(unique_id_type, "unique_id_type");
+  r.push_back(server_transaction_id, "server_transaction_id");
+  r.push_back(check_number, "check_number");
+  r.push_back(reference_number, "reference_number");
+  r.push_back(standard_industrial_code, "standard_industrial_code");
+  r.push_back(payee_id, "payee_id");
+  r.push_back(name, "name");
+  r.push_back(memo, "memo");
+  
+  return r;
   
   // create() can only handle so many columns, and pushBack converts it to a list 
   // instead of a DF for some reason. So we're just commenting out some columns that 
   // aren't important to me at the moment.
   
-  return df;
+  //return df;
 }
 
 int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_data)
@@ -639,7 +639,7 @@ SEXP ofx_info(SEXP path)
   libofx_proc_file(libofx_context, filename.c_str(), file_format);
   
   // Bring the accumulated transactions onto the list
-  inf["transactions"] = tl.toDataFrame();
+  inf["transactions"] = tl.toList();
   
   return inf;
 }
