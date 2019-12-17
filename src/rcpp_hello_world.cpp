@@ -67,6 +67,7 @@ public:
   Rcpp::NumericVector commission;
   Rcpp::StringVector fi_id;
   Rcpp::StringVector fi_id_corrected;
+  Rcpp::StringVector fi_id_correction_action;
   Rcpp::StringVector invTransactionType;
   Rcpp::StringVector unique_id;
   Rcpp::StringVector unique_id_type;
@@ -85,9 +86,10 @@ public:
 TransactionList::TransactionList(void) : accountId(0), transactionType(0), 
   initiated(0), posted(0), fundsAvailable(0), amount(0), units(0), oldUnits(0),
   newUnits(0), unitprice(0), fees(0), commission(0), fi_id(0), 
-  fi_id_corrected(0), invTransactionType(0), unique_id(0), unique_id_type(0),
-  server_transaction_id(0), check_number(0), reference_number(0),
-  standard_industrial_code(0), payee_id(0), name(0), memo(0) {
+  fi_id_corrected(0), fi_id_correction_action(0), invTransactionType(0), 
+  unique_id(0), unique_id_type(0), server_transaction_id(0), check_number(0), 
+  reference_number(0), standard_industrial_code(0), payee_id(0), name(0), 
+  memo(0) {
 }
 
 Rcpp::DataFrame TransactionList::toList(){
@@ -106,6 +108,7 @@ Rcpp::DataFrame TransactionList::toList(){
   r.push_back(commission, "commission");
   r.push_back(fi_id, "fi_id");
   r.push_back(fi_id_corrected, "fi_id_corrected");
+  r.push_back(fi_id_correction_action, "fi_id_correction_action");
   r.push_back(invTransactionType, "inv_transaction_type");
   r.push_back(unique_id, "unique_id");
   r.push_back(unique_id_type, "unique_id_type");
@@ -122,8 +125,7 @@ Rcpp::DataFrame TransactionList::toList(){
   // create() can only handle so many columns, and pushBack converts it to a list 
   // instead of a DF for some reason. So we're just commenting out some columns that 
   // aren't important to me at the moment.
-  
-  //return df;
+  // https://stackoverflow.com/questions/59365294/adding-column-to-rcppdataframe-is-falling-back-to-list
 }
 
 int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_data)
@@ -265,6 +267,18 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
     tl->fi_id_corrected.push_back(NA_STRING);
   }
   
+  Rcpp::String correction_action = NA_STRING;
+  if (data.fi_id_correction_action_valid == true)
+  {
+    if (data.fi_id_correction_action == DELETE)
+      correction_action = "DELETE";
+    else if (data.fi_id_correction_action == REPLACE)
+      correction_action = "REPLACE";
+    else
+      correction_action = "UNKNOWN";
+  }
+  tl->fi_id_correction_action = correction_action;
+  
   // TODO: move to a function
   type = NA_STRING;
   if (data.invtransactiontype_valid == true)
@@ -325,7 +339,7 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
   } else {
     tl->unique_id_type.push_back(NA_STRING);
   }
-  /* 
+  /* TODO
    * ofx_proc_security_cb(*(data.security_data_ptr), NULL );
   
   if (data.security_data_valid == true)
@@ -384,25 +398,10 @@ int ofx_proc_transaction_cb(struct OfxTransactionData data, void * transaction_d
     tl->memo.push_back(NA_STRING);
   }
   
-  
   return 0;
-  /*
-  TODO
-  if (data.fi_id_correction_action_valid == true)
-  {
-    cout << "    Action to take on the corrected transaction: ";
-    if (data.fi_id_correction_action == DELETE)
-      cout << "DELETE\n";
-    else if (data.fi_id_correction_action == REPLACE)
-      cout << "REPLACE\n";
-    else
-      cout << "ofx_proc_transaction(): This should not happen!\n";
-  }
-  
-   */
 }//end ofx_proc_transaction()
 
-
+// TODO
 int ofx_proc_security_cb(struct OfxSecurityData data, void * security_data)
 {
   char dest_string[255];
@@ -566,41 +565,60 @@ int ofx_proc_account_cb(struct OfxAccountData data, void * account_data)
 }//end ofx_proc_account()
 
 
-
+// TODO
 int ofx_proc_status_cb(struct OfxStatusData data, void * status_data)
 {
-  cout << "ofx_proc_status():\n";
+  Rcpp::List* inf{static_cast<Rcpp::List*>(status_data)};
+  
+  if (!inf->containsElementNamed("status")){
+    (*inf)["status"] = Rcpp::List::create();  
+  }
+  
+  Rcpp::List status = (*inf)["status"];
+  
+  Rcpp::List li = Rcpp::List::create();
+  
   if (data.ofx_element_name_valid == true)
   {
-    cout << "    Ofx entity this status is relevant to: " << data.ofx_element_name << " \n";
+    li["el_name"] = data.ofx_element_name;
   }
+  
+  
   if (data.severity_valid == true)
   {
-    cout << "    Severity: ";
     switch (data.severity)
     {
     case OfxStatusData::INFO :
-      cout << "INFO\n";
+      li["severiy"] = "INFO";
       break;
     case OfxStatusData::WARN :
-      cout << "WARN\n";
+      li["severity"] = "WARN";
       break;
     case OfxStatusData::ERROR :
-      cout << "ERROR\n";
+      li["severity"] = "ERROR";
       break;
     default:
-      cout << "WRITEME: Unknown status severity!\n";
+      li["severity"] = "UNKNOWN";
     }
   }
+  
   if (data.code_valid == true)
   {
-    cout << "    Code: " << data.code << ", name: " << data.name << "\n    Description: " << data.description << "\n";
+    li["code"] = data.code;
+    li["name"] = data.name;
+    li["description"] = data.description;
   }
+  
   if (data.server_message_valid == true)
   {
-    cout << "    Server Message: " << data.server_message << "\n";
+    li["server_message"] = std::string(data.server_message);
   }
-  cout << "\n";
+  
+  status.push_back(li);
+  
+  // TODO: Necessary? just work with the pointer instead of assigning back?
+  (*inf)["status"] = status;
+  
   return 0;
 }
 
